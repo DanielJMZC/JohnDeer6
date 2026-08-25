@@ -3,10 +3,9 @@ using UnityEngine;
 
 public class GlobalObstacleManager : MonoBehaviour
 {
-    public GameObject prefabReemplazo;
-    
-    [Range(0f, 1f)]
-    public float probabilidadAparicion = 0.7f;
+    public GameObject turbina;
+    public GameObject[] prefabsReemplazo;
+
     public int maxArbolesTotales = 5;
 
     void Start()
@@ -32,38 +31,43 @@ public class GlobalObstacleManager : MonoBehaviour
         }
 
         int arbolesCreados = 0;
+        bool turbinaCreada = false;
 
         foreach (Transform CornField in todosLosCampos)
         {
             if (arbolesCreados >= maxArbolesTotales) break;
-            if (CornField.childCount == 0) continue;
 
-            if (Random.value <= probabilidadAparicion)
+            List<Transform> plantasMaiz = new List<Transform>();
+            foreach (Transform maiz in CornField)
             {
-                List<Transform> plantasMaiz = new List<Transform>();
-                foreach (Transform maiz in CornField)
+                plantasMaiz.Add(maiz);
+            }
+
+            if (plantasMaiz.Count > 0)
+            {
+                Transform targetMaiz = plantasMaiz[Random.Range(0, plantasMaiz.Count)];
+                GameObject prefabSeleccionado;
+
+                if (!turbinaCreada)
                 {
-                    plantasMaiz.Add(maiz);
+                    prefabSeleccionado = turbina;
+                    turbinaCreada = true;
+                } else
+                {
+                    prefabSeleccionado = prefabsReemplazo[Random.Range(0, prefabsReemplazo.Length)];
                 }
 
-                if (plantasMaiz.Count > 0)
-                {
-                    int indexRand = Random.Range(0, plantasMaiz.Count);
-                    Transform targetMaiz = plantasMaiz[indexRand];
+                GameObject obstaculo = Instantiate(
+                    prefabSeleccionado,
+                    targetMaiz.position,
+                    targetMaiz.rotation,
+                    CornField
+                );
 
-                    GameObject obstaculo = Instantiate(
-                        prefabReemplazo,
-                        targetMaiz.position,
-                        targetMaiz.rotation,
-                        CornField
-                    );
+                obstaculo.name = prefabSeleccionado.name;
+                Destroy(targetMaiz.gameObject);
 
-                    obstaculo.name = prefabReemplazo.name;
-                    Destroy(targetMaiz.gameObject);
-
-                    arbolesCreados++;
-                    
-                }
+                arbolesCreados++;
             }
         }
     }
