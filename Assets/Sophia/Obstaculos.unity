@@ -11166,10 +11166,9 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 3ed9e8e14699e4f4a96c6ebbdaf28148, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::GlobalObstacleManager
+  turbina: {fileID: 679358729027405158, guid: c3db81b7273f1445f9d8d6b666c71404, type: 3}
   prefabsReemplazo:
   - {fileID: 8665113652632368195, guid: 66d469d85c6329d478f6eb7cbba4f246, type: 3}
-  - {fileID: 679358729027405158, guid: c3db81b7273f1445f9d8d6b666c71404, type: 3}
-  probabilidadAparicion: 1
   maxArbolesTotales: 5
 --- !u!1001 &726568537
 PrefabInstance:
