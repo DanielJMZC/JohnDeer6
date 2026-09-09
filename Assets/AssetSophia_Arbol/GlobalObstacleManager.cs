@@ -1,74 +1,71 @@
 using System.Collections.Generic;
 using UnityEngine;
 
-public class GlobalObstacleManager : MonoBehaviour
+public class ObstaculoRandomPlacer : MonoBehaviour
 {
-    public GameObject turbina;
-    public GameObject[] prefabsReemplazo;
+    [System.Serializable]
+    public class ObstaculoConfig
+    {
+        public GameObject prefab;
+        public int cantidad;
+    }
 
-    public int maxArbolesTotales = 5;
+    [Header("Configuración de obstáculos")]
+    public ObstaculoConfig[] obstaculos;
+
+    [Header("Referencia al área")]
+    public Transform soils;
 
     void Start()
-    {   
-        List<Transform> todosLosCampos = new List<Transform>();
-        foreach (Transform soil in transform)
+    {
+        ColocarObstaculos();
+    }
+
+    void ColocarObstaculos()
+    {
+        List<Transform> todosLosMaiz = new List<Transform>();
+
+        foreach (Transform soil in soils)
         {
-            foreach (Transform CornField in soil)
+            foreach (Transform maiz in soil)
             {
-                if (CornField.childCount > 0)
-                {
-                    todosLosCampos.Add(CornField);
-                }
+                todosLosMaiz.Add(maiz);
             }
         }
 
-        for (int i = 0; i < todosLosCampos.Count; i++)
+        for (int i = 0; i < todosLosMaiz.Count; i++)
         {
-            Transform temp = todosLosCampos[i];
-            int randomIndex = Random.Range(i, todosLosCampos.Count);
-            todosLosCampos[i] = todosLosCampos[randomIndex];
-            todosLosCampos[randomIndex] = temp;
+            int randomIndex = Random.Range(i, todosLosMaiz.Count);
+            Transform temp = todosLosMaiz[i];
+            todosLosMaiz[i] = todosLosMaiz[randomIndex];
+            todosLosMaiz[randomIndex] = temp;
         }
 
-        int arbolesCreados = 0;
-        bool turbinaCreada = false;
-
-        foreach (Transform CornField in todosLosCampos)
+        List<GameObject> colaObstaculos = new List<GameObject>();
+        foreach (ObstaculoConfig config in obstaculos)
         {
-            if (arbolesCreados >= maxArbolesTotales) break;
-
-            List<Transform> plantasMaiz = new List<Transform>();
-            foreach (Transform maiz in CornField)
+            for (int j = 0; j < config.cantidad; j++)
             {
-                plantasMaiz.Add(maiz);
+                colaObstaculos.Add(config.prefab);
             }
+        }
 
-            if (plantasMaiz.Count > 0)
-            {
-                Transform targetMaiz = plantasMaiz[Random.Range(0, plantasMaiz.Count)];
-                GameObject prefabSeleccionado;
+        int cantidadAColocar = Mathf.Min(colaObstaculos.Count, todosLosMaiz.Count);
 
-                if (!turbinaCreada)
-                {
-                    prefabSeleccionado = turbina;
-                    turbinaCreada = true;
-                } else
-                {
-                    prefabSeleccionado = prefabsReemplazo[Random.Range(0, prefabsReemplazo.Length)];
-                }
+        for (int i = 0; i < cantidadAColocar; i++)
+        {
+            Transform posicionMaiz = todosLosMaiz[i];
+            GameObject prefabSeleccionado = colaObstaculos[i];
 
-                GameObject obstaculo = Instantiate(
-                    prefabSeleccionado,
-                    targetMaiz.position,
-                    targetMaiz.rotation,
-                    CornField
-                );
+            GameObject obstaculo = Instantiate(
+                prefabSeleccionado,
+                posicionMaiz.position,
+                posicionMaiz.rotation,
+                posicionMaiz.parent
+            );
 
-                obstaculo.name = prefabSeleccionado.name;
-                Destroy(targetMaiz.gameObject);
+            obstaculo.name = prefabSeleccionado.name;
 
-                arbolesCreados++;
-            }
         }
     }
 }
