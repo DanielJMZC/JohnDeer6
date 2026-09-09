@@ -9,7 +9,7 @@ public class GridGenerator : MonoBehaviour
     public GameObject prefabTierraCultivo;
     public GameObject[] prefabsObstaculos;
 
-    [Header("Tamaño (input de prueba)")]
+    [Header("Tamaño")]
     [Range(1, 20)] public int filas = 5;
     [Range(1, 20)] public int columnas = 5;
 
@@ -33,11 +33,14 @@ public class GridGenerator : MonoBehaviour
         {
             for (int c = 0; c < columnas; c++)
             {
-                Vector3 resultadoGrid = grid.CellToWorld(new Vector3Int(c, f, 0));
-                Vector3 posicionMundo = new Vector3(resultadoGrid.x, 0f, resultadoGrid.y);
+
+                Vector3Int celdaGrid = new Vector3Int(c, 0, f);
+
+                Vector3 posicionMundo = grid.GetCellCenterWorld(celdaGrid);
 
                 GameObject prefabAUsar = DecidirPrefab();
-                GameObject instancia = Instantiate(prefabAUsar, transform.position + posicionMundo, Quaternion.identity, transform);
+
+                GameObject instancia = Instantiate(prefabAUsar, posicionMundo, Quaternion.identity, transform);
                 celdas[f, c] = instancia;
             }
         }

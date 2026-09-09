@@ -154,9 +154,9 @@ MonoBehaviour:
   prefabsObstaculos:
   - {fileID: 779700247244388733, guid: d77850bc0742c5b43b27029d9f917d57, type: 3}
   - {fileID: 2865422332167001292, guid: 40aa9281796d65c49ab42b432a292deb, type: 3}
-  filas: 6
-  columnas: 3
-  probabilidadObstaculo: 0.088
+  filas: 8
+  columnas: 8
+  probabilidadObstaculo: 0.2
 --- !u!4 &133309897
 Transform:
   m_ObjectHideFlags: 0
@@ -186,7 +186,7 @@ MonoBehaviour:
   m_EditorClassIdentifier: Assembly-CSharp::VehicleSpawner
   gridGenerator: {fileID: 133309896}
   grid: {fileID: 887989004}
-  prefabCamion: {fileID: 8464057484451314733, guid: 792d070f134d4b04ab33294cac666881, type: 3}
+  prefabCamion: {fileID: 8667855940735323744, guid: aa5f5604c6acc8746a23620c2ce4ca66, type: 3}
   prefabCosechadora: {fileID: 6236549145090545077, guid: 3cf3b9dbef1e147489a07ab322fb80e7, type: 3}
   cantidadCamiones: 2
   cantidadCosechadoras: 1
@@ -218,7 +218,7 @@ Grid:
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 887989003}
   m_Enabled: 1
-  m_CellSize: {x: 3, y: 3, z: 1}
+  m_CellSize: {x: 3, y: 1, z: 3}
   m_CellGap: {x: 0, y: 0, z: 0}
   m_CellLayout: 0
   m_CellSwizzle: 0
