@@ -1,12 +1,13 @@
 using System.Collections.Generic;
 using UnityEngine;
 
-/// <summary>Places scene buildings inside the terrain and builds a visible, gated farm fence.</summary>
 public class FarmLayoutController : MonoBehaviour
 {
     [SerializeField] private Transform buildingsRoot;
-    [SerializeField, Min(0)] private float buildingGap = 12f;
-    [SerializeField, Min(0)] private float fencePadding = 12f;
+    [SerializeField, Min(0)] private float buildingGap = 48f;
+    [SerializeField, Min(0)] private float fencePadding = 54f;
+    [SerializeField, Min(0)] private float placementEdgePadding = 12f;
+    [SerializeField, Min(0)] private float unloadSiloGap = 32f;
     [SerializeField, Min(.1f)] private float fenceThickness = 1.5f;
     [SerializeField, Min(.1f)] private float fenceHeight = 7f;
     private readonly Dictionary<Transform, Vector3> originalScales = new();
@@ -17,8 +18,9 @@ public class FarmLayoutController : MonoBehaviour
     private float sideGateZ;
 
     //Posiciona los edificios dentro del campo y genera la cerca alrededor del campo y los edificios. Devuelve el Bounds que contiene todo.
-    public Bounds Layout(Bounds field)
+    public Bounds Layout(Bounds field, Vector3? unloadPosition = null)
     {
+        sideGateZ = 0;
         if (buildingsRoot == null)
         {
             GameObject found = GameObject.Find("Buildings");
@@ -28,7 +30,7 @@ public class FarmLayoutController : MonoBehaviour
         if (placementPlane != null && placementPlane.GetComponentInChildren<Renderer>() != null)
             placementBounds = RendererBounds(placementPlane);
         Bounds enclosure = field;
-        if (buildingsRoot != null) enclosure.Encapsulate(LayoutBuildings(field));
+        if (buildingsRoot != null) enclosure.Encapsulate(LayoutBuildings(field, unloadPosition));
         GenerateFence(enclosure);
         enclosure.Expand(fencePadding * 2f + fenceThickness);
         return enclosure;
@@ -36,7 +38,7 @@ public class FarmLayoutController : MonoBehaviour
 
     private float GroundHeight(Vector3 fallback) => placementPlane != null ? placementBounds.max.y : fallback.y;
 
-    private Bounds LayoutBuildings(Bounds field)
+    private Bounds LayoutBuildings(Bounds field, Vector3? unloadPosition)
     {
         var children = new List<Transform>();
         foreach (Transform child in buildingsRoot)
@@ -54,10 +56,10 @@ public class FarmLayoutController : MonoBehaviour
         for (int i = 0; i < children.Count; i++)
             children[i].rotation = Quaternion.Euler(0, 180f + facingOffsets[i % facingOffsets.Length], 0);
 
-        float planeMinX = placementPlane != null ? placementBounds.min.x + fencePadding : field.min.x - field.size.x;
-        float planeMaxX = placementPlane != null ? placementBounds.max.x - fencePadding : field.max.x + field.size.x;
-        float planeMinZ = placementPlane != null ? placementBounds.min.z + fencePadding : field.min.z - field.size.z;
-        float planeMaxZ = placementPlane != null ? placementBounds.max.z - fencePadding : field.max.z + field.size.z;
+        float planeMinX = placementPlane != null ? placementBounds.min.x + placementEdgePadding : field.min.x - field.size.x;
+        float planeMaxX = placementPlane != null ? placementBounds.max.x - placementEdgePadding : field.max.x + field.size.x;
+        float planeMinZ = placementPlane != null ? placementBounds.min.z + placementEdgePadding : field.min.z - field.size.z;
+        float planeMaxZ = placementPlane != null ? placementBounds.max.z - placementEdgePadding : field.max.z + field.size.z;
         float farmLeft = planeMinX;
         float farmRight = Mathf.Max(farmLeft + 1, field.min.x - buildingGap);
         float farmWidth = farmRight - farmLeft;
@@ -74,12 +76,17 @@ public class FarmLayoutController : MonoBehaviour
             Bounds before = RendererBounds(children[i]);
             string itemName = children[i].name.ToLowerInvariant();
             bool behindField = itemName.Contains("silo") || itemName.Contains("windmill");
+            bool isSilo = itemName.Contains("silo");
             bool isBarn = itemName.Contains("bigbarn");
             bool isWell = itemName.Contains("well");
-            float x = behindField
+            float x = isSilo && unloadPosition.HasValue
+                ? unloadPosition.Value.x - 20f
+                : behindField
                 ? Mathf.Lerp(field.min.x, field.max.x, itemName.Contains("silo") ? .18f : .72f)
                 : isBarn ? field.min.x - buildingGap - before.extents.x : field.min.x - buildingGap - before.extents.x * 1.4f;
-            float z = behindField
+            float z = isSilo && unloadPosition.HasValue
+                ? unloadPosition.Value.z - unloadSiloGap - before.extents.z
+                : behindField
                 ? field.max.z + buildingGap + before.extents.z
                 : Mathf.Lerp(field.min.z, field.max.z, isBarn ? .62f : .30f);
             x = Mathf.Clamp(x, planeMinX + before.extents.x, planeMaxX - before.extents.x);
@@ -91,7 +98,8 @@ public class FarmLayoutController : MonoBehaviour
             combined.Encapsulate(RendererBounds(children[i]));
             if (isWell) sideGateZ = z;
         }
-        if (sideGateZ == 0) sideGateZ = Mathf.Lerp(field.min.z, field.max.z, .2f);
+        if (unloadPosition.HasValue) sideGateZ = unloadPosition.Value.z;
+        else if (sideGateZ == 0) sideGateZ = Mathf.Lerp(field.min.z, field.max.z, .2f);
         return combined;
     }
 

@@ -160,6 +160,7 @@ public class WebSocketController : MonoBehaviour
     public void SetPlaybackSpeed(float speed)
     {
         if (speed != 2.5f && speed != 5f && speed != 10f && speed != 25f && speed != 50f) return;
+        PlaybackSpeed = speed;
         SendCommand("set_speed:" + speed.ToString(System.Globalization.CultureInfo.InvariantCulture));
     }
 

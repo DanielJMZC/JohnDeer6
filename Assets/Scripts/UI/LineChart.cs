@@ -111,7 +111,6 @@ public class LineChart : VisualElement
         Refresh();
     }
 
-    // Call after changing axis configuration or line color.
     public void Refresh()
     {
         xTitle.text = XAxis.Title;
@@ -203,7 +202,7 @@ public class LineChart : VisualElement
         Segment(painter, new Vector2(plot.x, plot.yMax), new Vector2(plot.xMax, plot.yMax));
         painter.lineWidth = 2;
         painter.strokeColor = LineColor;
-        // Clip each segment against the data rectangle, without pinning outliers to an axis.
+
         for (int i = 1; i < points.Count; i++)
         {
             Vector2 a = Map(points[i - 1]), b = Map(points[i]);

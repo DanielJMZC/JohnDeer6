@@ -25,7 +25,7 @@ public class DashboardUIController : MonoBehaviour
     private Label kpiTitle;
     private DropdownField speedDropdown;
     private static readonly float[] PlaybackSpeeds = { 2.5f, 5f, 10f, 25f, 50f };
-    private static readonly string[] PlaybackLabels = { "0.5×", "1×", "2×", "5×", "10×" };
+    private static readonly string[] PlaybackLabels = { "0.5", "1", "2", "5", "10" };
     private LineChart harvestChart;
     private LineChart fuelChart;
     private LineChart activeChart;
@@ -297,8 +297,7 @@ public class DashboardUIController : MonoBehaviour
             buildingsPage.style.marginLeft = 10;
             buildingsPage.style.marginRight = buildingsPage.style.marginTop = buildingsPage.style.marginBottom = 0;
         }
-        // Keep the configuration controls visually with the top simulation controls,
-        // even though the panel is authored near the mode controls in the UXML.
+
         configPanel = rootElement.Q<VisualElement>("simulation-config");
         VisualElement mainContainer = rootElement.Q<VisualElement>("main_container");
         if (configPanel != null && mainContainer != null && configPanel.parent != mainContainer)
@@ -384,13 +383,15 @@ public class DashboardUIController : MonoBehaviour
         controls.style.flexDirection = FlexDirection.Row;
         controls.style.alignItems = Align.Center;
         controls.style.marginRight = 12;
-        controls.Add(new Label("Playback"));
+        controls.Add(new Label("Playback speed"));
         speedDropdown = new DropdownField();
         speedDropdown.choices = new List<string>(PlaybackLabels);
-        speedDropdown.style.width = 80;
+        speedDropdown.style.width = 104;
+        speedDropdown.style.height = 38;
         speedDropdown.style.marginLeft = 6;
-        speedDropdown.tooltip = "1× = 5 segundos simulados por segundo real, igual que la versión anterior.";
+        speedDropdown.tooltip = "1 = 5 segundos simulados por segundo real, igual que la versión anterior.";
         StyleDropdown(speedDropdown);
+        StylePlaybackDropdown(speedDropdown);
         speedDropdown.RegisterValueChangedCallback(OnSpeedChanged);
         controls.Add(speedDropdown);
         toolbar.Insert(0, controls);
@@ -709,6 +710,46 @@ public class DashboardUIController : MonoBehaviour
         input.style.borderTopColor = input.style.borderBottomColor = (Color)new Color32(177, 196, 174, 255);
         input.style.borderTopLeftRadius = input.style.borderTopRightRadius = 7;
         input.style.borderBottomLeftRadius = input.style.borderBottomRightRadius = 7;
+        input.style.flexDirection = FlexDirection.Row;
+
+        Label valueText = dropdown.Q<Label>(className: "unity-base-popup-field__text");
+        if (valueText != null)
+        {
+            valueText.style.flexGrow = 1;
+            valueText.style.flexShrink = 1;
+            valueText.style.minWidth = 32;
+            valueText.style.unityTextAlign = TextAnchor.MiddleCenter;
+        }
+
+        VisualElement arrow = dropdown.Q<VisualElement>(className: "unity-base-popup-field__arrow");
+        if (arrow != null)
+        {
+            arrow.style.flexGrow = 0;
+            arrow.style.flexShrink = 0;
+            arrow.style.width = 14;
+        }
+    }
+
+    private static void StylePlaybackDropdown(DropdownField dropdown)
+    {
+        Color green = (Color)new Color32(29, 86, 43, 255);
+        dropdown.style.backgroundColor = green;
+        dropdown.style.color = Color.white;
+
+        VisualElement input = dropdown.Q<VisualElement>(className: "unity-base-popup-field__input");
+        if (input == null) input = dropdown.Q<VisualElement>(className: "unity-base-field__input");
+        if (input != null)
+        {
+            input.style.backgroundColor = green;
+            input.style.borderLeftColor = input.style.borderRightColor = green;
+            input.style.borderTopColor = input.style.borderBottomColor = green;
+        }
+
+        Label valueText = dropdown.Q<Label>(className: "unity-base-popup-field__text");
+        if (valueText != null) valueText.style.color = Color.white;
+
+        VisualElement arrow = dropdown.Q<VisualElement>(className: "unity-base-popup-field__arrow");
+        if (arrow != null) arrow.style.unityBackgroundImageTintColor = Color.white;
     }
 
     private static void AddHistoryPoint(List<Vector2> points, float x, float y)

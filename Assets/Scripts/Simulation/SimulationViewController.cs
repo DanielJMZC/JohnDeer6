@@ -82,7 +82,10 @@ public class SimulationViewController : MonoBehaviour
 
             //Calcula las dimensiones del campo en el mundo. Se usan para posicionar camaras y edificios de la granja.
             Bounds fieldBounds = generator.GetFieldBounds(message.world.field);
-            farmLayout.Layout(fieldBounds);
+            Vector3? unloadPosition = message.world.unload_point != null
+                ? generator.CellToWorld(message.world.unload_point.x, message.world.unload_point.y)
+                : null;
+            farmLayout.Layout(fieldBounds, unloadPosition);
             fieldCamera.FrameField(fieldBounds);
             if (vehicleSpawner != null)
                 vehiclesReady = vehicleSpawner.SpawnFromSimulation(message.agents, generator);

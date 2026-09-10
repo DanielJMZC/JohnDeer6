@@ -23,6 +23,12 @@ public class VehicleSpawner : MonoBehaviour
     public bool spawnOnStart = true;
     [Tooltip("Vertical offset from the grid cell center, in Unity units.")]
     public float vehicleHeightOffset;
+    [SerializeField, Min(0f), Tooltip("Additional vertical lift for the grain-cart model.")]
+    private float grainCartHeightOffset = 1f;
+    [SerializeField, Min(0f), Tooltip("Moves shared-cell spawn formations south, away from the field.")]
+    private float sharedSpawnSouthOffset = 24f;
+    [SerializeField, Min(0f), Tooltip("Moves shared-cell spawn formations left, away from the field.")]
+    private float sharedSpawnLeftOffset = 24f;
 
     //Para animar el vehiculo.
     private sealed class Motion
@@ -98,6 +104,8 @@ public class VehicleSpawner : MonoBehaviour
         {
             // Keep the parent inactive while preparing instances with unknown positions.
             var instance = Instantiate(PrefabFor(agent.type), generatedRoot.transform);
+            if (agent.type == "grain_cart")
+                instance.transform.rotation *= Quaternion.Euler(0, 180f, 0);
             instance.name = $"{agent.type}_{agent.id}";
             instance.SetActive(false);
             foreach (Camera vehicleCamera in instance.GetComponentsInChildren<Camera>(true))
@@ -123,16 +131,20 @@ public class VehicleSpawner : MonoBehaviour
         if (agents == null || grid == null || grid.grid == null) return;
 
         //Si un vehiculo esta en la misma celula que otro, los separa en una formacion de cuadrado.
-        var occupantCounts = new Dictionary<Vector2Int, int>();
-        var occupantIndexes = new Dictionary<Vector2Int, int>();
+        var cellOccupantCounts = new Dictionary<Vector2Int, int>();
+        var occupantCounts = new Dictionary<Vector3Int, int>();
+        var occupantIndexes = new Dictionary<Vector3Int, int>();
 
         //Cuenta cuantos vehiculos hay en cada celula.
         foreach (var agent in agents)
         {
             if (agent?.position == null) continue;
             var cell = new Vector2Int(agent.position.x, agent.position.y);
-            occupantCounts.TryGetValue(cell, out int count);
-            occupantCounts[cell] = count + 1;
+            cellOccupantCounts.TryGetValue(cell, out int cellCount);
+            cellOccupantCounts[cell] = cellCount + 1;
+            var occupancyKey = new Vector3Int(cell.x, cell.y, agent.type == "grain_cart" ? 1 : 0);
+            occupantCounts.TryGetValue(occupancyKey, out int count);
+            occupantCounts[occupancyKey] = count + 1;
         }
         foreach (var agent in agents)
         {
@@ -141,23 +153,29 @@ public class VehicleSpawner : MonoBehaviour
                 behavior.ApplyTelemetry(agent);
             if (agent.position == null) continue;
             var cell = new Vector2Int(agent.position.x, agent.position.y);
+            bool isGrainCart = agent.type == "grain_cart";
+            var occupancyKey = new Vector3Int(cell.x, cell.y, isGrainCart ? 1 : 0);
 
             //Revisa cuantos vehiculos hay en la celula y los separa en una formacion de cuadrado. Es mas para el inciio donde hacen spawn en el mismo lugar.
-            occupantIndexes.TryGetValue(cell, out int occupantIndex);
-            occupantIndexes[cell] = occupantIndex + 1;
-            int occupantCount = occupantCounts[cell];
+            occupantIndexes.TryGetValue(occupancyKey, out int occupantIndex);
+            occupantIndexes[occupancyKey] = occupantIndex + 1;
+            int occupantCount = occupantCounts[occupancyKey];
             int columns = Mathf.CeilToInt(Mathf.Sqrt(occupantCount));
-            int rows = Mathf.CeilToInt(occupantCount / (float)columns);
             int column = occupantIndex % columns;
             int row = occupantIndex / columns;
             Bounds vehicleBounds = CombinedRendererBounds(instance);
             float modelFootprint = Mathf.Max(vehicleBounds.size.x, vehicleBounds.size.z);
-            float spacing = Mathf.Max(espacioEntreVehiculos, modelFootprint * .85f);
+            float spacing = Mathf.Max(espacioEntreVehiculos, modelFootprint * 1.1f);
+            float formationZ = cellOccupantCounts[cell] <= 1
+                ? 0f
+                : (isGrainCart ? -(row + .5f) : row + .5f) * spacing - sharedSpawnSouthOffset;
             Vector3 formationOffset = new Vector3(
-                (column - (columns - 1) * .5f) * spacing,
+                (column - (columns - 1) * .5f) * spacing -
+                    (cellOccupantCounts[cell] > 1 ? sharedSpawnLeftOffset : 0f),
                 0,
-                (row - (rows - 1) * .5f) * spacing);
-            Vector3 target = grid.CellToWorld(cell.x, cell.y) + formationOffset + Vector3.up * vehicleHeightOffset;
+                formationZ);
+            float heightOffset = vehicleHeightOffset + (isGrainCart ? grainCartHeightOffset : 0f);
+            Vector3 target = grid.CellToWorld(cell.x, cell.y) + formationOffset + Vector3.up * heightOffset;
 
             //Cuando recibe su primera posicion, hace el movimiento para llegar a su primera posicion.
             if (!motions.TryGetValue(agent.id, out Motion motion))
@@ -182,7 +200,7 @@ public class VehicleSpawner : MonoBehaviour
                 Vector3 direction = target - motion.start;
                 direction.y = 0;
                 motion.targetRotation = direction.sqrMagnitude > 0.0001f
-                    ? Quaternion.LookRotation(direction, Vector3.up)
+                    ? FacingRotation(agent.type, direction)
                     : motion.startRotation;
                 motion.elapsed = 0;
                 motion.duration = Mathf.Max(0.01f, SimulationStepDuration / Mathf.Max(0.01f, PlaybackSpeed));
@@ -196,7 +214,7 @@ public class VehicleSpawner : MonoBehaviour
                 Vector3 direction = target - motion.start;
                 direction.y = 0;
                 motion.targetRotation = direction.sqrMagnitude > 0.0001f
-                    ? Quaternion.LookRotation(direction, Vector3.up)
+                    ? FacingRotation(agent.type, direction)
                     : motion.startRotation;
                 motion.elapsed = 0;
                 motion.duration = Mathf.Max(0.01f, SimulationStepDuration / Mathf.Max(0.01f, PlaybackSpeed));
@@ -278,6 +296,12 @@ public class VehicleSpawner : MonoBehaviour
         if (type == "harvester") return prefabCosechadora;
         if (type == "grain_cart") return prefabTractor;
         return null;
+    }
+
+    private static Quaternion FacingRotation(string type, Vector3 direction)
+    {
+        Quaternion rotation = Quaternion.LookRotation(direction, Vector3.up);
+        return type == "grain_cart" ? rotation * Quaternion.Euler(0, 180f, 0) : rotation;
     }
 
     //Calcula size del objeto.
