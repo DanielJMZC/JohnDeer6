@@ -3,6 +3,7 @@ using UnityEngine;
 
 public class VehicleSpawner : MonoBehaviour
 {
+    //Prefabs y cantidad de vehiculos.
     [Header("Prefabs")]
     public GameObject prefabTractor;
     public GameObject prefabCosechadora;
@@ -10,6 +11,8 @@ public class VehicleSpawner : MonoBehaviour
     [Header("Cantidad")]
     [Range(0, 20)] public int cantidadTractores = 2;
     [Range(0, 20)] public int cantidadCosechadoras = 1;
+
+    //Para cuando hagan spawn tengan espacio entre ellos y esten posicionados correctamente.
 
     [Header("Espaciado")]
     public float espacioEntreVehiculos = 4f;
@@ -19,6 +22,8 @@ public class VehicleSpawner : MonoBehaviour
     public float vehicleHeightOffset;
     [Header("Movement smoothing")]
     [SerializeField, Min(0.01f)] private float movementDuration = 0.1f;
+
+    //Para animar el vehiculo.
     private sealed class Motion
     {
         public Vector3 start;
@@ -28,10 +33,17 @@ public class VehicleSpawner : MonoBehaviour
         public float elapsed;
         public float duration;
     }
+
+    //ID de agente con su respectivo movimiento
     private readonly Dictionary<int, Motion> motions = new Dictionary<int, Motion>();
+
+    //Donde se guardan los vehiculos que se instancian. Objeto vacio.
     private GameObject generatedRoot;
+
+    //ID de agente con su vehiculo.
     private readonly Dictionary<int, GameObject> vehicles = new Dictionary<int, GameObject>();
 
+    //Crea la ruta y coloca los vehiculos.
     private void Start()
     {
         if (!spawnOnStart) return;
@@ -47,6 +59,8 @@ public class VehicleSpawner : MonoBehaviour
             if (cantidad > 0) Debug.LogError("VehicleSpawner has an unassigned vehicle prefab.", this);
             return;
         }
+
+        //Posiciona los vehiculos y los instancea. 
         for (int i = 0; i < cantidad; i++)
         {
             Vector3 posicion = transform.position + new Vector3(offsetActual, 0f, 0f);
@@ -56,8 +70,11 @@ public class VehicleSpawner : MonoBehaviour
         }
     }
 
+    //Los crea en base a los datos de simulacion
+
     public bool SpawnFromSimulation(WebSocketController.AgentData[] agents, GridGenerator grid)
     {
+        //Valida los vehiculos. Si no es valido no lo crea.
         if (agents == null || grid == null || grid.grid == null) return false;
         var ids = new HashSet<int>();
         foreach (var agent in agents)
@@ -68,6 +85,8 @@ public class VehicleSpawner : MonoBehaviour
                 return false;
             }
         }
+
+        //Crea los vehiculos y los posiciona en base a la simulacion.
 
         ClearVehicles();
         CreateRoot();
@@ -86,6 +105,8 @@ public class VehicleSpawner : MonoBehaviour
             if (agent.type == "harvester") cantidadCosechadoras++;
             else cantidadTractores++;
         }
+
+        //Actualiza posiciones en base a la simulacion. 
         UpdatePositions(agents, grid);
         generatedRoot.SetActive(true);
         Debug.Log($"Prepared {vehicles.Count} Python vehicles. Vehicles appear when positions arrive.", this);
@@ -95,8 +116,12 @@ public class VehicleSpawner : MonoBehaviour
     public void UpdatePositions(WebSocketController.AgentData[] agents, GridGenerator grid)
     {
         if (agents == null || grid == null || grid.grid == null) return;
+
+        //Si un vehiculo esta en la misma celula que otro, los separa en una formacion de cuadrado.
         var occupantCounts = new Dictionary<Vector2Int, int>();
         var occupantIndexes = new Dictionary<Vector2Int, int>();
+
+        //Cuenta cuantos vehiculos hay en cada celula.
         foreach (var agent in agents)
         {
             if (agent?.position == null) continue;
@@ -108,6 +133,8 @@ public class VehicleSpawner : MonoBehaviour
         {
             if (agent == null || agent.position == null || !vehicles.TryGetValue(agent.id, out var instance)) continue;
             var cell = new Vector2Int(agent.position.x, agent.position.y);
+
+            //Revisa cuantos vehiculos hay en la celula y los separa en una formacion de cuadrado. Es mas para el inciio donde hacen spawn en el mismo lugar.
             occupantIndexes.TryGetValue(cell, out int occupantIndex);
             occupantIndexes[cell] = occupantIndex + 1;
             int occupantCount = occupantCounts[cell];
@@ -123,9 +150,10 @@ public class VehicleSpawner : MonoBehaviour
                 0,
                 (row - (rows - 1) * .5f) * spacing);
             Vector3 target = grid.CellToWorld(cell.x, cell.y) + formationOffset + Vector3.up * vehicleHeightOffset;
+
+            //Cuando recibe su primera posicion, hace el movimiento para llegar a su primera posicion.
             if (!motions.TryGetValue(agent.id, out Motion motion))
             {
-                // Initial placement must not animate from the prefab's origin.
                 instance.transform.position = target;
                 motions.Add(agent.id, new Motion
                 {
@@ -136,9 +164,10 @@ public class VehicleSpawner : MonoBehaviour
                     duration = 0
                 });
             }
-            else if ((target - motion.target).sqrMagnitude > 0.0001f)
+            
+            //Cuando recibe la primera posicion, posiciona el vehiculo inmediatamente.
+            else if (motion.duration <= 0 || motion.elapsed >= motion.duration)
             {
-                // Repeated stationary snapshots must not restart an in-flight move.
                 motion.start = instance.transform.position;
                 motion.target = target;
                 motion.startRotation = instance.transform.rotation;
@@ -150,11 +179,27 @@ public class VehicleSpawner : MonoBehaviour
                 motion.elapsed = 0;
                 motion.duration = Mathf.Max(0.01f, movementDuration);
             }
-            // Python's active flag means movement, not visibility.
+            //Si el movimiento anterior termino, prepara el movimiento hacia la posicion recibida.
+            else if ((target - motion.target).sqrMagnitude > 0.0001f)
+            {
+                motion.start = instance.transform.position;
+                motion.target = target;
+                motion.startRotation = instance.transform.rotation;
+                Vector3 direction = target - motion.start;
+                direction.y = 0;
+                motion.targetRotation = direction.sqrMagnitude > 0.0001f
+                    ? Quaternion.LookRotation(direction, Vector3.up)
+                    : motion.startRotation;
+                motion.elapsed = 0;
+                motion.duration = Mathf.Max(0.01f, movementDuration);
+            }
+
+            //Muestra vehiculo cuando tenga posicion valida.
             instance.SetActive(true);
         }
     }
 
+    //Elimina todos los vehiculos
     public void ClearVehicles()
     {
         if (generatedRoot != null)
@@ -168,6 +213,8 @@ public class VehicleSpawner : MonoBehaviour
         offsetActual = 0;
     }
 
+    //Activa la camara del vehiculo seleccionado.
+    //Las otras camaras son desactivadas. 
     public bool ShowVehicleCamera(int vehicleId, RenderTexture target)
     {
         bool found = false;
@@ -185,6 +232,7 @@ public class VehicleSpawner : MonoBehaviour
         return found;
     }
 
+    //Desatciva todas las camaras. Se utiliza cuando se cambia de la interfaz de vehiculo a la de Overview o Farm.
     public void HideVehicleCameras()
     {
         foreach (var pair in vehicles)
@@ -197,7 +245,8 @@ public class VehicleSpawner : MonoBehaviour
             }
         }
     }
-
+    
+    //Para cada frame, si el vehiculo tiene un movimiento pendiente, lo mueve hacia su destino.
     private void Update()
     {
         foreach (var entry in motions)
@@ -213,12 +262,16 @@ public class VehicleSpawner : MonoBehaviour
         }
     }
 
+    //Regresa prefab correspondiente.
+
     private GameObject PrefabFor(string type)
     {
         if (type == "harvester") return prefabCosechadora;
         if (type == "grain_cart") return prefabTractor;
         return null;
     }
+
+    //Calcula size del objeto.
 
     private static Bounds CombinedRendererBounds(GameObject instance)
     {

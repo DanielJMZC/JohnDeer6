@@ -1,10 +1,11 @@
 using UnityEngine;
 
-// Runs before Start so the standalone generator cannot race initialization.
+//Para que este controlador se cree antes que otros controladores que dependan. 
 [DefaultExecutionOrder(-100)]
 [RequireComponent(typeof(GridGenerator))]
 public class SimulationViewController : MonoBehaviour
 {
+    //Guarda los componentes que se necesitan para mostrar la simulacion.
     [SerializeField] private WebSocketController webSocketController;
     private GridGenerator generator;
     [SerializeField] private VehicleSpawner vehicleSpawner;
@@ -13,6 +14,7 @@ public class SimulationViewController : MonoBehaviour
     private FarmLayoutController farmLayout;
     private WebSocketController.SimulationMessage renderedInitialization;
 
+    //Guarda y "Inicializa" los componentes.
     private void Awake()
     {
         generator = GetComponent<GridGenerator>();
@@ -26,6 +28,7 @@ public class SimulationViewController : MonoBehaviour
         else Debug.LogWarning("Assign a VehicleSpawner to display Python vehicles.", this);
     }
 
+    //Encuentra WebSocketController y se subscribe a los eventos de simulacion cuando recibe mensaje.
     private void OnEnable()
     {
         if (webSocketController == null)
@@ -44,27 +47,37 @@ public class SimulationViewController : MonoBehaviour
             OnSimulationMessage(webSocketController.LatestMessage);
     }
 
+    //Se desuscribe de los eventos. 
     private void OnDisable()
     {
         if (webSocketController != null)
             webSocketController.SimulationUpdated -= OnSimulationMessage;
     }
 
+    //Cuando recibe un mensaje de simulacion, procesa el mensaje y actualiza la vista.
+
     private void OnSimulationMessage(WebSocketController.SimulationMessage message)
     {
         if (message == null) return;
         if (message.type == "simulation_init")
         {
+            //Si el mensaje es el mismo, no hace nada. Ya se inicializo.
             if (ReferenceEquals(message, renderedInitialization)) return;
             vehiclesReady = false;
+
+            //Construye el campo.
             if (!generator.GenerateFromSimulation(message)) return;
             renderedInitialization = message;
+
+            //Calcula las dimensiones del campo en el mundo. Se usan para posicionar camaras y edificios de la granja.
             Bounds fieldBounds = generator.GetFieldBounds(message.world.field);
             farmLayout.Layout(fieldBounds);
             fieldCamera.FrameField(fieldBounds);
             if (vehicleSpawner != null)
                 vehiclesReady = vehicleSpawner.SpawnFromSimulation(message.agents, generator);
         }
+
+        //Si es un step actualiza los vehiculos y quita los cultivos que fueron cosechados.
         else if (message.type == "simulation_step" && renderedInitialization != null)
         {
             if (vehiclesReady) vehicleSpawner.UpdatePositions(message.agents, generator);

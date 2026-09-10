@@ -93,6 +93,7 @@ public class DashboardUIController : MonoBehaviour
         restartControl?.SetEnabled(ready && (status == "Ready" || status == "Running" || status == "Paused" || status == "Completed" || status == "Command failed"));
     }
 
+    //Se desuscriben los eventos de los botones y se limpian las referencias a los elementos de la UI.
     private void UnbindControls()
     {
         if (startControl != null) startControl.clicked -= StartClicked;
@@ -259,6 +260,8 @@ public class DashboardUIController : MonoBehaviour
         farmDensity = rootElement.Q<Label>("farm-density");
         farmUnloadDistance = rootElement.Q<Label>("farm-unload-distance");
         SetupVehiclePanel();
+
+        
         if (vehiclesPage != null && overviewContent != null && vehiclesPage.parent != overviewContent)
         {
             vehiclesPage.RemoveFromHierarchy();

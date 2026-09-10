@@ -2,39 +2,52 @@ using UnityEngine;
 
 public class FieldCameraController : MonoBehaviour
 {
+    //Configuraciones de Render Texture y camara.
     [SerializeField] private DashboardUIController dashboard;
     [SerializeField, Min(128)] private int textureWidth = 1280;
     [SerializeField, Min(128)] private int textureHeight = 720;
     [SerializeField, Min(1)] private float framingPadding = 1.15f;
     [SerializeField, Min(100)] private float viewDistance = 10000f;
     [SerializeField] private LayerMask visibleLayers = ~(1 << 5);
+
+    //Las camaras y texturas de Overview.
     private readonly Camera[] cameras = new Camera[5];
     private readonly RenderTexture[] textures = new RenderTexture[5];
     public static readonly string[] ViewNames = { "Overhead", "Front Left", "Front Right", "Rear Left", "Rear Right" };
+
+    //El view seleccionado.
     public int SelectedView { get; private set; }
     public RenderTexture OutputTexture { get; private set; }
     private bool renderingEnabled = true;
 
     public void FrameField(Bounds bounds)
     {
+        //Size de la render texture. 
         int width = Mathf.Clamp(textureWidth, 128, SystemInfo.maxTextureSize);
         int height = Mathf.Clamp(textureHeight, 128, SystemInfo.maxTextureSize);
         float aspect = width / (float)height;
         float padding = Mathf.Clamp(framingPadding, 1f, 1.03f);
+
+        //Crea las camaras 
         for (int i = 0; i < cameras.Length; i++)
         {
+            //Si no existe, crearla.
             if (cameras[i] == null)
             {
                 var cameraObject = new GameObject("Field Camera - " + ViewNames[i]);
                 cameraObject.transform.SetParent(transform, false);
                 cameras[i] = cameraObject.AddComponent<Camera>();
             }
+
+            //Configuraciones de camara.
             Camera view = cameras[i];
             view.enabled = false;
             view.clearFlags = CameraClearFlags.SolidColor;
             view.backgroundColor = new Color(0.12f, 0.16f, 0.12f);
             view.allowHDR = false;
             view.allowMSAA = false;
+
+            //Crea un RenderTexture para cada vista y lo asigna a la camara.
             if (textures[i] == null || textures[i].width != width || textures[i].height != height)
             {
                 ReleaseTexture(i);
@@ -51,6 +64,8 @@ public class FieldCameraController : MonoBehaviour
             view.cullingMask = visibleLayers;
             view.nearClipPlane = 0.1f;
             view.orthographic = i == 0;
+
+            //Posiciona la camara para que encuadre el campo. La camara 0 es ortografica y las otras son perspectiva.
             if (i == 0)
             {
                 float distance = Mathf.Max(10, Mathf.Max(bounds.size.x, bounds.size.z));
@@ -84,6 +99,8 @@ public class FieldCameraController : MonoBehaviour
                 view.farClipPlane = Mathf.Max(viewDistance, distance + bounds.extents.magnitude + 100);
             }
         }
+
+        //Si no se asigno un dashboard, busca uno en la escena. Si hay uno, lo asigna y le pasa las camaras.
         if (dashboard == null)
         {
             var dashboards = FindObjectsByType<DashboardUIController>();
@@ -94,6 +111,7 @@ public class FieldCameraController : MonoBehaviour
         SelectView(SelectedView);
     }
 
+    //Selecciona la vista de camara. Solo una camara esta activa a la vez. La textura de salida es la del view seleccionado.
     public void SelectView(int index)
     {
         if (index < 0 || index >= cameras.Length) return;
@@ -103,6 +121,8 @@ public class FieldCameraController : MonoBehaviour
         OutputTexture = textures[index];
         if (dashboard != null) dashboard.SetCameraTexture(OutputTexture);
     }
+
+    //Deshabilita rendering cuando se cambio de modo (Vehicle o Farm)
 
     public void SetRenderingEnabled(bool enabled)
     {
@@ -119,6 +139,8 @@ public class FieldCameraController : MonoBehaviour
             if (view != null) view.enabled = false;
     }
 
+    //Libera la textura.
+
     private void ReleaseTexture(int index)
     {
         if (cameras[index] != null) cameras[index].targetTexture = null;
@@ -128,6 +150,8 @@ public class FieldCameraController : MonoBehaviour
         Destroy(textures[index]);
         textures[index] = null;
     }
+
+    //Destruye camaras.
 
     private void OnDestroy()
     {

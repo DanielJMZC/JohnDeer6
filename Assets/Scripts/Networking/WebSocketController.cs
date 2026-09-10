@@ -102,12 +102,15 @@ public class WebSocketController : MonoBehaviour
     }
 
 
-    
+    //Crea el cliente de Websocket y se conecta al servidor Python. 
+    // Se subscribe a los eventos de conexion, mensaje, error y desconexion.
     private async void OnEnable()
     {
         try
         {
+            //Actualiza el status en el Dashboard.
             SetStatus("Connecting");
+
             socket = new WebSocket(serverUrl);
             socket.OnOpen += OnConnected;
             socket.OnMessage += OnMessageReceived;
@@ -124,25 +127,37 @@ public class WebSocketController : MonoBehaviour
         }
     }
 
+    //Actualiza el status en el Dashboard cuando te conectes al servidor Python.
     private void OnConnected()
     {
         SetStatus("Connected");
         Debug.Log("Connected to Python. Waiting for simulation data.", this);
     }
 
+    //Status
     public string Status { get; private set; } = "Disconnected";
+
+    //Invoca una accion que otros controladores se subscriben para poder recibir los mensajes de status. 
+    // Principalmente para actualizar el Dashboard.
     public event Action StatusChanged;
+
+    //Para los IF statements si existe un socket y si el estado del socket es abierto, entonces se puede enviar un mensaje al servidor Python.
     public bool CanSend => socket != null && socket.State == WebSocketState.Open;
+
+    //Comandos publicos para mandar un comando al servidor Python.
     public void StartSimulation() => SendCommand("start");
     public void PauseSimulation() => SendCommand("pause");
     public void ResumeSimulation() => SendCommand("resume");
     public void RestartSimulation() => SendCommand("restart");
+
+    //Igual que los otros comandos pero envia mas informacion de Python para cambiar los parametros.
 
     public void ConfigureAndRestart(int width, int height, int harvesters, int carts, int obstacles, int steps)
     {
         SendCommand($"configure_restart:{width}:{height}:{harvesters}:{carts}:{obstacles}:{steps}");
     }
 
+    //Cambia el status y invoca la accion StatusChanged para que otros controladores puedan recibir el mensaje de status.
     private void SetStatus(string value)
     {
         Status = value;
@@ -151,10 +166,14 @@ public class WebSocketController : MonoBehaviour
 
     private async void SendCommand(string command)
     {
+        //Solo manda comandos si el socket esta abierto y no se ha enviado un comando mientras se espera respuesta.
         if (!CanSend || Status == "Waiting for server") return;
+
         SetStatus("Waiting for server");
         try
         {
+            //Manda comando al servidor Python. 
+            // Si el comando es configure_restart, entonces envia un JSON con los parametros de configuracion.
             if (command.StartsWith("configure_restart:"))
             {
                 string[] values = command.Split(':');
@@ -163,6 +182,8 @@ public class WebSocketController : MonoBehaviour
             else
                 await socket.SendText("{\"command\":\"" + command + "\"}");
         }
+
+        //Por si no se pueden enviar los comandos.
         catch (Exception exception)
         {
             SetStatus("Command failed");
@@ -171,6 +192,7 @@ public class WebSocketController : MonoBehaviour
     }
     private void OnMessageReceived(byte[] bytes)
     {
+        //Convierte el mensaje de bytes a string y luego a un objeto SimulationMessage.
         string json = Encoding.UTF8.GetString(bytes);
         SimulationMessage message;
         try
@@ -179,50 +201,63 @@ public class WebSocketController : MonoBehaviour
         }
         catch (ArgumentException exception)
         {
+            //Por si es invalido. No deberia pasar esto... pero por si acaso.
             Debug.LogWarning($"Invalid Python JSON: {exception.Message}", this);
             return;
         }
+
+        //Si el mensaje es de tipo estatus, actualiza el estatus.
 
         if (message != null && message.type == "simulation_status")
         {
             if (!string.IsNullOrEmpty(message.status)) SetStatus(message.status);
             return;
         }
+
+        //Si el mensaje es null o invalido, ignorarlo.
         if (message == null || (message.type != "simulation_init" && message.type != "simulation_step"))
             return;
 
+        //No hay agentes o datos KPI, no se puede procesar el mensaje.
         if (message.agents == null || (message.type == "simulation_step" && message.data == null))
         {
             Debug.LogWarning("Python message is missing agents or KPI data.", this);
             return;
         }
 
+        //Si es un mensaje de inicializacion, guarda el mensaje y actualiza el estatus a "Ready".
         if (message.type == "simulation_init")
         {
             SetStatus("Ready");
             LatestInitialization = message;
             Debug.Log($"Python message: {json}", this);
         }
+
+        //Recibio el primer mensaje de simulacion en vivo. 
         else if (LatestMessage == null || LatestMessage.type != "simulation_step")
             Debug.Log("Receiving live simulation updates from Python.", this);
 
+        //Si es un mensaje de paso de simulacion, guarda el mensaje y invoca el comando para que otros controladores se enteren.
         if (message.type == "simulation_step" && Status != "Waiting for server") SetStatus("Running");
         LatestMessage = message;
         SimulationUpdated?.Invoke(message);
     }
 
+    //Error de coneccion. Revisa URL.
     private void OnConnectionError(string error)
     {
         SetStatus("Connection error");
         Debug.LogError($"Python WebSocket error: {error}", this);
     }
 
+    //Desconectado. Revisa si el servidor Python esta corriendo. 
     private void OnDisconnected(WebSocketCloseCode code)
     {
         SetStatus("Disconnected");
         Debug.Log($"Python disconnected: {code}", this);
     }
 
+    //Cuando ya termines la simulacion, desconecta el servidor Python y limpia los eventos. Cierra la conneccion. 
     private async void OnDisable()
     {
         WebSocket connection = socket;

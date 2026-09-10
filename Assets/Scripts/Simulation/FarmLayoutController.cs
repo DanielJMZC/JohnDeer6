@@ -16,6 +16,7 @@ public class FarmLayoutController : MonoBehaviour
     private Bounds placementBounds;
     private float sideGateZ;
 
+    //Posiciona los edificios dentro del campo y genera la cerca alrededor del campo y los edificios. Devuelve el Bounds que contiene todo.
     public Bounds Layout(Bounds field)
     {
         if (buildingsRoot == null)

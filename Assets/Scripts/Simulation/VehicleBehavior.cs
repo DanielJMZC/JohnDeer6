@@ -3,6 +3,7 @@ using UnityEngine;
 using UnityEngine.Splines;
 using TMPro;
 
+//ANTES SE USABA PERO YA NO.
 public class VehicleBehavior : MonoBehaviour
 {
     public GameObject m_Vehicle;
