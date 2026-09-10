@@ -187,7 +187,7 @@ MonoBehaviour:
   dashboard: {fileID: 1259309395}
   textureWidth: 1280
   textureHeight: 720
-  framingPadding: 1.02
+  framingPadding: 1.15
   viewDistance: 10000
   visibleLayers:
     serializedVersion: 2

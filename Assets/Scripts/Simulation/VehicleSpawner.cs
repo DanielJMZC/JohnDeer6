@@ -80,6 +80,8 @@ public class VehicleSpawner : MonoBehaviour
             var instance = Instantiate(PrefabFor(agent.type), generatedRoot.transform);
             instance.name = $"{agent.type}_{agent.id}";
             instance.SetActive(false);
+            foreach (Camera vehicleCamera in instance.GetComponentsInChildren<Camera>(true))
+                vehicleCamera.enabled = false;
             vehicles.Add(agent.id, instance);
             if (agent.type == "harvester") cantidadCosechadoras++;
             else cantidadTractores++;
@@ -93,10 +95,34 @@ public class VehicleSpawner : MonoBehaviour
     public void UpdatePositions(WebSocketController.AgentData[] agents, GridGenerator grid)
     {
         if (agents == null || grid == null || grid.grid == null) return;
+        var occupantCounts = new Dictionary<Vector2Int, int>();
+        var occupantIndexes = new Dictionary<Vector2Int, int>();
+        foreach (var agent in agents)
+        {
+            if (agent?.position == null) continue;
+            var cell = new Vector2Int(agent.position.x, agent.position.y);
+            occupantCounts.TryGetValue(cell, out int count);
+            occupantCounts[cell] = count + 1;
+        }
         foreach (var agent in agents)
         {
             if (agent == null || agent.position == null || !vehicles.TryGetValue(agent.id, out var instance)) continue;
-            Vector3 target = grid.CellToWorld(agent.position.x, agent.position.y) + Vector3.up * vehicleHeightOffset;
+            var cell = new Vector2Int(agent.position.x, agent.position.y);
+            occupantIndexes.TryGetValue(cell, out int occupantIndex);
+            occupantIndexes[cell] = occupantIndex + 1;
+            int occupantCount = occupantCounts[cell];
+            int columns = Mathf.CeilToInt(Mathf.Sqrt(occupantCount));
+            int rows = Mathf.CeilToInt(occupantCount / (float)columns);
+            int column = occupantIndex % columns;
+            int row = occupantIndex / columns;
+            Bounds vehicleBounds = CombinedRendererBounds(instance);
+            float modelFootprint = Mathf.Max(vehicleBounds.size.x, vehicleBounds.size.z);
+            float spacing = Mathf.Max(espacioEntreVehiculos, modelFootprint * .85f);
+            Vector3 formationOffset = new Vector3(
+                (column - (columns - 1) * .5f) * spacing,
+                0,
+                (row - (rows - 1) * .5f) * spacing);
+            Vector3 target = grid.CellToWorld(cell.x, cell.y) + formationOffset + Vector3.up * vehicleHeightOffset;
             if (!motions.TryGetValue(agent.id, out Motion motion))
             {
                 // Initial placement must not animate from the prefab's origin.
@@ -142,6 +168,36 @@ public class VehicleSpawner : MonoBehaviour
         offsetActual = 0;
     }
 
+    public bool ShowVehicleCamera(int vehicleId, RenderTexture target)
+    {
+        bool found = false;
+        foreach (var pair in vehicles)
+        {
+            if (pair.Value == null) continue;
+            foreach (Camera vehicleCamera in pair.Value.GetComponentsInChildren<Camera>(true))
+            {
+                bool selected = pair.Key == vehicleId && !found;
+                vehicleCamera.targetTexture = selected ? target : null;
+                vehicleCamera.enabled = selected;
+                if (selected) found = true;
+            }
+        }
+        return found;
+    }
+
+    public void HideVehicleCameras()
+    {
+        foreach (var pair in vehicles)
+        {
+            if (pair.Value == null) continue;
+            foreach (Camera vehicleCamera in pair.Value.GetComponentsInChildren<Camera>(true))
+            {
+                vehicleCamera.enabled = false;
+                vehicleCamera.targetTexture = null;
+            }
+        }
+    }
+
     private void Update()
     {
         foreach (var entry in motions)
@@ -162,6 +218,15 @@ public class VehicleSpawner : MonoBehaviour
         if (type == "harvester") return prefabCosechadora;
         if (type == "grain_cart") return prefabTractor;
         return null;
+    }
+
+    private static Bounds CombinedRendererBounds(GameObject instance)
+    {
+        Renderer[] renderers = instance.GetComponentsInChildren<Renderer>(true);
+        if (renderers.Length == 0) return new Bounds(instance.transform.position, Vector3.one * 4);
+        Bounds bounds = renderers[0].bounds;
+        for (int i = 1; i < renderers.Length; i++) bounds.Encapsulate(renderers[i].bounds);
+        return bounds;
     }
 
     private void CreateRoot()

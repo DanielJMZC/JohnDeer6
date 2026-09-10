@@ -5,24 +5,50 @@ using UnityEngine;
 
 public class WebSocketController : MonoBehaviour
 {
+    //URL de Servidor Python
     [SerializeField] private string serverUrl = "ws://localhost:8765";
 
+    //Websocket + Mensajes Ultimos
     private WebSocket socket;
 
     public SimulationMessage LatestMessage { get; private set; }
     public SimulationMessage LatestInitialization { get; private set; }
+
+    //Una accion que invoca WebSocketController y otros controladores se subscriben para poder recibir los mensajes de simulacion
     public event Action<SimulationMessage> SimulationUpdated;
 
+    //Las clases de datos que se reciben desde el servidor Python.
     [Serializable]
     public class SimulationMessage
     {
         public string type;
         public double simulation_time;
         public string status;
+        public SimulationData simulation;
         public AgentData[] agents;
         public KpiData data;
         public WorldData world;
         public CellPosition[] obstacles;
+        public RegionData[] regions;
+    }
+
+    [Serializable]
+    public class RegionData
+    {
+        public int id;
+        public int x_min;
+        public int x_max;
+        public int y_min;
+        public int y_max;
+    }
+
+    [Serializable]
+    public class SimulationData
+    {
+        public int width;
+        public int height;
+        public float meters_per_cell = 5f;
+        public float delta_time;
     }
 
     [Serializable]
@@ -57,6 +83,13 @@ public class WebSocketController : MonoBehaviour
         public string type;
         public bool active;
         public bool harvesting;
+        public bool full;
+        public bool going_to_unload;
+        public int load;
+        public int capacity;
+        public float fuel;
+        public float fuel_capacity;
+        public float fuel_consumed;
         public CellPosition position;
     }
 
@@ -68,6 +101,8 @@ public class WebSocketController : MonoBehaviour
         public float total_fuel_consumed;
     }
 
+
+    
     private async void OnEnable()
     {
         try

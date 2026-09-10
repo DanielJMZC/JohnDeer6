@@ -10,6 +10,7 @@ public class SimulationViewController : MonoBehaviour
     [SerializeField] private VehicleSpawner vehicleSpawner;
     private bool vehiclesReady;
     private FieldCameraController fieldCamera;
+    private FarmLayoutController farmLayout;
     private WebSocketController.SimulationMessage renderedInitialization;
 
     private void Awake()
@@ -18,6 +19,8 @@ public class SimulationViewController : MonoBehaviour
         generator.generateOnStart = false;
         fieldCamera = GetComponent<FieldCameraController>();
         if (fieldCamera == null) fieldCamera = gameObject.AddComponent<FieldCameraController>();
+        farmLayout = GetComponent<FarmLayoutController>();
+        if (farmLayout == null) farmLayout = gameObject.AddComponent<FarmLayoutController>();
         if (vehicleSpawner == null) vehicleSpawner = GetComponent<VehicleSpawner>();
         if (vehicleSpawner != null) vehicleSpawner.spawnOnStart = false;
         else Debug.LogWarning("Assign a VehicleSpawner to display Python vehicles.", this);
@@ -56,7 +59,9 @@ public class SimulationViewController : MonoBehaviour
             vehiclesReady = false;
             if (!generator.GenerateFromSimulation(message)) return;
             renderedInitialization = message;
-            fieldCamera.FrameField(generator.GetFieldBounds(message.world.field));
+            Bounds fieldBounds = generator.GetFieldBounds(message.world.field);
+            farmLayout.Layout(fieldBounds);
+            fieldCamera.FrameField(fieldBounds);
             if (vehicleSpawner != null)
                 vehiclesReady = vehicleSpawner.SpawnFromSimulation(message.agents, generator);
         }

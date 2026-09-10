@@ -13,12 +13,14 @@ public class FieldCameraController : MonoBehaviour
     public static readonly string[] ViewNames = { "Overhead", "Front Left", "Front Right", "Rear Left", "Rear Right" };
     public int SelectedView { get; private set; }
     public RenderTexture OutputTexture { get; private set; }
+    private bool renderingEnabled = true;
 
     public void FrameField(Bounds bounds)
     {
         int width = Mathf.Clamp(textureWidth, 128, SystemInfo.maxTextureSize);
         int height = Mathf.Clamp(textureHeight, 128, SystemInfo.maxTextureSize);
         float aspect = width / (float)height;
+        float padding = Mathf.Clamp(framingPadding, 1f, 1.03f);
         for (int i = 0; i < cameras.Length; i++)
         {
             if (cameras[i] == null)
@@ -55,7 +57,7 @@ public class FieldCameraController : MonoBehaviour
                 view.transform.SetPositionAndRotation(
                     new Vector3(bounds.center.x, bounds.max.y + distance, bounds.center.z),
                     Quaternion.Euler(90, 0, 0));
-                view.orthographicSize = Mathf.Max(1, Mathf.Max(bounds.extents.z, bounds.extents.x / aspect) * Mathf.Max(1, framingPadding));
+                view.orthographicSize = Mathf.Max(1, Mathf.Max(bounds.extents.z, bounds.extents.x / aspect) * padding);
                 view.farClipPlane = Mathf.Max(viewDistance, distance + bounds.size.y + 100);
             }
             else
@@ -76,7 +78,7 @@ public class FieldCameraController : MonoBehaviour
                         (corner & 4) == 0 ? -1 : 1));
                     Vector3 local = inverse * offset;
                     float requiredDepth = Mathf.Max(Mathf.Abs(local.x) / tanX, Mathf.Abs(local.y) / tanY);
-                    distance = Mathf.Max(distance, requiredDepth * Mathf.Max(1, framingPadding) - local.z + 1);
+                    distance = Mathf.Max(distance, requiredDepth * padding - local.z + 1);
                 }
                 view.transform.SetPositionAndRotation(bounds.center + direction * distance, rotation);
                 view.farClipPlane = Mathf.Max(viewDistance, distance + bounds.extents.magnitude + 100);
@@ -97,9 +99,16 @@ public class FieldCameraController : MonoBehaviour
         if (index < 0 || index >= cameras.Length) return;
         SelectedView = index;
         for (int i = 0; i < cameras.Length; i++)
-            if (cameras[i] != null) cameras[i].enabled = isActiveAndEnabled && i == index;
+            if (cameras[i] != null) cameras[i].enabled = renderingEnabled && isActiveAndEnabled && i == index;
         OutputTexture = textures[index];
         if (dashboard != null) dashboard.SetCameraTexture(OutputTexture);
+    }
+
+    public void SetRenderingEnabled(bool enabled)
+    {
+        renderingEnabled = enabled;
+        for (int i = 0; i < cameras.Length; i++)
+            if (cameras[i] != null) cameras[i].enabled = enabled && isActiveAndEnabled && i == SelectedView;
     }
 
     private void OnEnable() => SelectView(SelectedView);

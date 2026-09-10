@@ -36,8 +36,20 @@ public class LineChart : VisualElement
         style.flexGrow = 1;
         style.minHeight = 140;
         style.minWidth = 0;
+        style.marginBottom = 8;
+        style.paddingLeft = 8;
+        style.paddingRight = 8;
+        style.paddingTop = 8;
+        style.paddingBottom = 6;
+        style.backgroundColor = new Color(0.975f, 0.98f, 0.97f);
+        style.borderBottomWidth = 1;
+        style.borderBottomColor = new Color(0.82f, 0.85f, 0.81f);
         title.style.fontSize = 16;
         title.style.unityFontStyleAndWeight = FontStyle.Bold;
+        title.style.color = new Color(0.12f, 0.22f, 0.14f);
+        title.style.paddingBottom = 5;
+        title.style.borderBottomWidth = 1;
+        title.style.borderBottomColor = new Color(0.88f, 0.90f, 0.87f);
         Add(title);
         yTitle.style.fontSize = 11;
         Add(yTitle);
@@ -78,6 +90,24 @@ public class LineChart : VisualElement
     public void ClearData()
     {
         points.Clear();
+        Refresh();
+    }
+
+    public void SetData(IReadOnlyList<Vector2> values)
+    {
+        points.Clear();
+        int start = Mathf.Max(0, values.Count - Mathf.Max(2, MaxPoints));
+        for (int i = start; i < values.Count; i++)
+        {
+            Vector2 value = values[i];
+            if (!Finite(value.x) || !Finite(value.y)) continue;
+            if (points.Count > 0 && value.x < points[points.Count - 1].x)
+                throw new ArgumentException("Chart X values must be nondecreasing.");
+            if (points.Count > 0 && value.x == points[points.Count - 1].x)
+                points[points.Count - 1] = value;
+            else
+                points.Add(value);
+        }
         Refresh();
     }
 
@@ -155,11 +185,18 @@ public class LineChart : VisualElement
         Painter2D painter = context.painter2D;
         painter.lineWidth = 1;
         painter.strokeColor = new Color(0.84f, 0.86f, 0.84f);
-        int count = TickCount(YAxis, false);
-        for (int i = 0; i < count; i++)
+        int yCount = TickCount(YAxis, false);
+        for (int i = 0; i < yCount; i++)
         {
-            float y = plot.y + plot.height * i / (count - 1);
+            float y = plot.y + plot.height * i / (yCount - 1);
             Segment(painter, new Vector2(plot.x, y), new Vector2(plot.xMax, y));
+        }
+        painter.strokeColor = new Color(0.91f, 0.92f, 0.90f);
+        int xCount = TickCount(XAxis, true);
+        for (int i = 1; i < xCount - 1; i++)
+        {
+            float x = plot.x + plot.width * i / (xCount - 1);
+            Segment(painter, new Vector2(x, plot.y), new Vector2(x, plot.yMax));
         }
         painter.strokeColor = Color.gray;
         Segment(painter, new Vector2(plot.x, plot.y), new Vector2(plot.x, plot.yMax));

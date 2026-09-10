@@ -149,6 +149,21 @@ public class GridGenerator : MonoBehaviour
         cropVisuals.Remove(cell);
     }
 
+    public void SetCropTilesVisible(bool visible)
+    {
+        foreach (GameObject crop in cropVisuals.Values)
+            if (crop != null) crop.SetActive(visible);
+    }
+
+    public void SetObstaclesVisible(bool visible)
+    {
+        if (celdas == null) return;
+        foreach (GameObject cell in celdas)
+            if (cell != null && cell.name.EndsWith("_Obstacle"))
+                foreach (Renderer obstacleVisual in cell.GetComponentsInChildren<Renderer>())
+                    obstacleVisual.enabled = visible;
+    }
+
     public Bounds GetFieldBounds(WebSocketController.FieldData field)
     {
         var bounds = new Bounds(CellToWorld(field.x, field.y), Vector3.zero);
