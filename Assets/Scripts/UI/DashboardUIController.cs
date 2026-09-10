@@ -23,6 +23,9 @@ public class DashboardUIController : MonoBehaviour
     private Label vehiclesValue;
     private Label timeValue;
     private Label kpiTitle;
+    private DropdownField speedDropdown;
+    private static readonly float[] PlaybackSpeeds = { 2.5f, 5f, 10f, 25f, 50f };
+    private static readonly string[] PlaybackLabels = { "0.5×", "1×", "2×", "5×", "10×" };
     private LineChart harvestChart;
     private LineChart fuelChart;
     private LineChart activeChart;
@@ -58,7 +61,7 @@ public class DashboardUIController : MonoBehaviour
     private sealed class VehicleHistory
     {
         public string Type;
-        public int Capacity;
+        public float Capacity;
         public float FuelCapacity;
         public readonly List<Vector2> Load = new List<Vector2>();
         public readonly List<Vector2> Fuel = new List<Vector2>();
@@ -87,6 +90,12 @@ public class DashboardUIController : MonoBehaviour
         string status = webSocketController != null ? webSocketController.Status : "Disconnected";
         bool ready = webSocketController != null && webSocketController.CanSend;
         if (connectionStatus != null) connectionStatus.text = $"Status: {status}";
+        if (speedDropdown != null)
+        {
+            int index = Array.IndexOf(PlaybackSpeeds, webSocketController != null ? webSocketController.PlaybackSpeed : 5f);
+            speedDropdown.SetValueWithoutNotify(PlaybackLabels[index >= 0 ? index : 1]);
+            speedDropdown.SetEnabled(ready && status != "Waiting for server");
+        }
         startControl?.SetEnabled(ready && status == "Ready");
         pauseControl?.SetEnabled(ready && status == "Running");
         resumeControl?.SetEnabled(ready && status == "Paused");
@@ -96,6 +105,8 @@ public class DashboardUIController : MonoBehaviour
     //Se desuscriben los eventos de los botones y se limpian las referencias a los elementos de la UI.
     private void UnbindControls()
     {
+        if (speedDropdown != null) speedDropdown.UnregisterValueChangedCallback(OnSpeedChanged);
+        speedDropdown = null;
         if (startControl != null) startControl.clicked -= StartClicked;
         if (pauseControl != null) pauseControl.clicked -= PauseClicked;
         if (resumeControl != null) resumeControl.clicked -= ResumeClicked;
@@ -176,7 +187,7 @@ public class DashboardUIController : MonoBehaviour
             webSocketController = GetComponent<WebSocketController>();
         if (webSocketController == null)
         {
-            WebSocketController[] connections = FindObjectsByType<WebSocketController>(FindObjectsSortMode.None);
+            WebSocketController[] connections = FindObjectsByType<WebSocketController>();
             if (connections.Length == 1)
                 webSocketController = connections[0];
         }
@@ -320,6 +331,7 @@ public class DashboardUIController : MonoBehaviour
         }
         UnbindTabs();
         SetupCharts(rootElement);
+        SetupPlaybackControls(rootElement);
         harvestPercentValue = rootElement.Q<Label>("kti_harvest_value");
         wheatValue = rootElement.Q<Label>("kti_wheat_value");
         fuelValue = rootElement.Q<Label>("kti_fuel_value");
@@ -355,6 +367,34 @@ public class DashboardUIController : MonoBehaviour
         }
 
         SelectTab(selectedTab);
+    }
+
+    private void OnSpeedChanged(ChangeEvent<string> evt)
+    {
+        int speedIndex = Array.IndexOf(PlaybackLabels, evt.newValue);
+        if (speedIndex >= 0) webSocketController?.SetPlaybackSpeed(PlaybackSpeeds[speedIndex]);
+    }
+
+    private void SetupPlaybackControls(VisualElement root)
+    {
+        root.Q<VisualElement>("playback-controls")?.RemoveFromHierarchy();
+        VisualElement toolbar = root.Q<VisualElement>("top_bar");
+        if (toolbar == null) return;
+        var controls = new VisualElement { name = "playback-controls" };
+        controls.style.flexDirection = FlexDirection.Row;
+        controls.style.alignItems = Align.Center;
+        controls.style.marginRight = 12;
+        controls.Add(new Label("Playback"));
+        speedDropdown = new DropdownField();
+        speedDropdown.choices = new List<string>(PlaybackLabels);
+        speedDropdown.style.width = 80;
+        speedDropdown.style.marginLeft = 6;
+        speedDropdown.tooltip = "1× = 5 segundos simulados por segundo real, igual que la versión anterior.";
+        StyleDropdown(speedDropdown);
+        speedDropdown.RegisterValueChangedCallback(OnSpeedChanged);
+        controls.Add(speedDropdown);
+        toolbar.Insert(0, controls);
+        RefreshControls();
     }
 
     private void ToggleConfig()
@@ -399,13 +439,15 @@ public class DashboardUIController : MonoBehaviour
             RefreshSelectedVehicle();
             return;
         }
+        if (fuelValue != null) fuelValue.tooltip = "Combustible consumido (L)";
+        if (harvestPercentValue != null) harvestPercentValue.tooltip = "Avance de la cosecha";
         bool hasStep = message != null && message.type == "simulation_step" && message.data != null;
         if (harvestPercentValue != null)
             harvestPercentValue.text = hasStep ? $"{message.data.harvest_progress:F1}%" : "--";
         if (wheatValue != null)
-            wheatValue.text = hasStep ? $"{message.data.harvested} cells" : "--";
+            wheatValue.text = hasStep ? $"{message.data.harvested_kg:F2} kg" : "--";
         if (fuelValue != null)
-            fuelValue.text = hasStep ? $"{message.data.total_fuel_consumed:F2}" : "--";
+            fuelValue.text = hasStep ? $"{message.data.total_fuel_consumed:F2} L" : "--";
         if (vehiclesValue != null)
             vehiclesValue.text = message?.agents != null ? message.agents.Length.ToString() : "--";
         if (timeValue != null)
@@ -531,7 +573,7 @@ public class DashboardUIController : MonoBehaviour
         vehicleFuelChart.YAxis.Min = 0;
         vehicleFuelChart.YAxis.Max = 100;
         vehicleFuelChart.LineColor = new Color(0.13f, 0.45f, 0.72f);
-        vehicleConsumedChart = CreateVehicleChart("Fuel Used", "Cumulative fuel used");
+        vehicleConsumedChart = CreateVehicleChart("Fuel Used", "Cumulative fuel used (L)");
         vehicleConsumedChart.YAxis.Min = 0;
         vehicleConsumedChart.LineColor = new Color(0.88f, 0.52f, 0.13f);
         vehicleChartHost.Add(vehicleLoadChart);
@@ -598,15 +640,14 @@ public class DashboardUIController : MonoBehaviour
                     float elapsed = time - history.LastSampleTime;
                     history.ObservedSeconds += elapsed;
                     if (agent.active || agent.harvesting || agent.going_to_unload) history.ActiveSeconds += elapsed;
-                    if (agent.position != null && history.HasPosition)
-                        history.DistanceMeters += Vector2.Distance(history.LastPosition,
-                            new Vector2(agent.position.x, agent.position.y)) * metersPerCell;
+
                 }
                 if (agent.position != null)
                 {
                     history.LastPosition = new Vector2Int(agent.position.x, agent.position.y);
                     history.HasPosition = true;
                 }
+                history.DistanceMeters = agent.distance_m;
                 history.LastSampleTime = time;
                 AddHistoryPoint(history.Load, time, history.Capacity > 0 ? agent.load * 100f / history.Capacity : 0);
                 AddHistoryPoint(history.Fuel, time, history.FuelCapacity > 0 ? agent.fuel * 100f / history.FuelCapacity : 0);
@@ -683,6 +724,9 @@ public class DashboardUIController : MonoBehaviour
         var agent = history.Latest;
         if (agent != null)
         {
+            string telemetry = VehicleBehavior.TelemetryText(agent);
+            if (fuelValue != null) fuelValue.tooltip = telemetry;
+            if (harvestPercentValue != null) harvestPercentValue.tooltip = telemetry;
             string position = agent.position != null ? $"({agent.position.x}, {agent.position.y})" : "Waiting";
             string activity = agent.harvesting ? "Harvesting" : agent.going_to_unload ? "Unloading" : agent.active ? "Moving" : "Idle";
             if (harvestPercentValue != null)
@@ -694,7 +738,7 @@ public class DashboardUIController : MonoBehaviour
                     : (Color)new Color32(105, 109, 105, 255);
             }
             if (wheatValue != null) wheatValue.text = position;
-            if (fuelValue != null) fuelValue.text = $"{agent.load} / {history.Capacity}";
+            if (fuelValue != null) fuelValue.text = $"{agent.load:F2} / {history.Capacity:F2} kg";
             if (vehiclesValue != null) vehiclesValue.text = history.DistanceMeters >= 1000
                 ? $"{history.DistanceMeters / 1000f:F1} km" : $"{history.DistanceMeters:F0} m";
             if (timeValue != null) timeValue.text = history.ObservedSeconds > 0
@@ -725,7 +769,7 @@ public class DashboardUIController : MonoBehaviour
             harvestChart.YAxis.Min = 0;
             harvestChart.YAxis.Max = 100;
             fuelChart = new LineChart { Title = "Fuel Consumption", LineColor = new Color(0.8f, 0.49f, 0.1f) };
-            fuelChart.YAxis.Title = "Cumulative fuel consumed";
+            fuelChart.YAxis.Title = "Cumulative fuel consumed (L)";
             fuelChart.YAxis.Min = 0;
             activeChart = new LineChart { Title = "Active Vehicles", LineColor = new Color(0.15f, 0.45f, 0.8f) };
             activeChart.YAxis.Title = "Vehicle count";
@@ -734,10 +778,10 @@ public class DashboardUIController : MonoBehaviour
             harvestRateChart = MetricLine("Harvest Rate", "Cells / minute", new Color(.34f, .64f, .2f));
             averageLoadChart = MetricLine("Average Fleet Load", "Load (%)", new Color(.18f, .52f, .72f));
             averageLoadChart.YAxis.Max = 100;
-            fuelRateChart = MetricLine("Fuel Consumption Rate", "Fuel / minute", new Color(.9f, .48f, .12f));
+            fuelRateChart = MetricLine("Fuel Consumption Rate", "L / minute", new Color(.9f, .48f, .12f));
             utilizationChart = MetricLine("Fleet Utilization", "Active (%)", new Color(.35f, .61f, .28f));
             utilizationChart.YAxis.Max = 100;
-            detailedFuelChart = MetricLine("Total Fuel Consumed", "Cumulative fuel used", new Color(.8f, .49f, .1f));
+            detailedFuelChart = MetricLine("Total Fuel Consumed", "Cumulative fuel used (L)", new Color(.8f, .49f, .1f));
             unloadingChart = MetricLine("Vehicles Unloading", "Vehicle count", new Color(.65f, .38f, .75f));
             unloadingChart.YAxis.Format = value => value.ToString("0");
             foreach (LineChart chart in new[] { harvestChart, fuelChart, activeChart, harvestRateChart, averageLoadChart, fuelRateChart, utilizationChart, detailedFuelChart, unloadingChart })

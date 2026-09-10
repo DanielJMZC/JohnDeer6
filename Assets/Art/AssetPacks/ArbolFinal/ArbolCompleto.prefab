@@ -465,6 +465,7 @@ GameObject:
   serializedVersion: 6
   m_Component:
   - component: {fileID: 2159290796859691294}
+  - component: {fileID: 5947923672382526795}
   m_Layer: 0
   m_Name: ArbolCompleto
   m_TagString: Untagged
@@ -491,6 +492,29 @@ Transform:
   - {fileID: 6385500195360635486}
   m_Father: {fileID: 0}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
+--- !u!205 &5947923672382526795
+LODGroup:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 7988091035196146902}
+  serializedVersion: 3
+  m_LocalReferencePoint: {x: 1.637634, y: 1.781625, z: -11.829145}
+  m_Size: 3.6955762
+  m_FadeMode: 0
+  m_AnimateCrossFading: 0
+  m_LastLODIsBillboard: 0
+  m_LODs:
+  - screenRelativeHeight: 0.0001
+    fadeTransitionWidth: 0
+    renderers:
+    - renderer: {fileID: 7976567003276657511}
+    - renderer: {fileID: 4168855794795998352}
+    - renderer: {fileID: 4100222517557226871}
+    - renderer: {fileID: 5269066254318327512}
+  m_Enabled: 1
+  m_GlobalIlluminationLOD: 0
 --- !u!1 &8393307342306030939
 GameObject:
   m_ObjectHideFlags: 0

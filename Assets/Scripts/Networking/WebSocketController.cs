@@ -13,6 +13,8 @@ public class WebSocketController : MonoBehaviour
 
     public SimulationMessage LatestMessage { get; private set; }
     public SimulationMessage LatestInitialization { get; private set; }
+    public float PlaybackSpeed { get; private set; } = 5f;
+    public float SimulationStepDuration { get; private set; } = 0.5f;
 
     //Una accion que invoca WebSocketController y otros controladores se subscriben para poder recibir los mensajes de simulacion
     public event Action<SimulationMessage> SimulationUpdated;
@@ -23,6 +25,7 @@ public class WebSocketController : MonoBehaviour
     {
         public string type;
         public double simulation_time;
+        public float playback_speed;
         public string status;
         public SimulationData simulation;
         public AgentData[] agents;
@@ -85,11 +88,15 @@ public class WebSocketController : MonoBehaviour
         public bool harvesting;
         public bool full;
         public bool going_to_unload;
-        public int load;
-        public int capacity;
+        public float load;
+        public float capacity;
         public float fuel;
         public float fuel_capacity;
         public float fuel_consumed;
+        public string operating_state;
+        public float transferred_kg;
+        public float delivered_kg;
+        public float distance_m;
         public CellPosition position;
     }
 
@@ -97,6 +104,7 @@ public class WebSocketController : MonoBehaviour
     public class KpiData
     {
         public int harvested;
+        public float harvested_kg;
         public float harvest_progress;
         public float total_fuel_consumed;
     }
@@ -149,6 +157,11 @@ public class WebSocketController : MonoBehaviour
     public void PauseSimulation() => SendCommand("pause");
     public void ResumeSimulation() => SendCommand("resume");
     public void RestartSimulation() => SendCommand("restart");
+    public void SetPlaybackSpeed(float speed)
+    {
+        if (speed != 2.5f && speed != 5f && speed != 10f && speed != 25f && speed != 50f) return;
+        SendCommand("set_speed:" + speed.ToString(System.Globalization.CultureInfo.InvariantCulture));
+    }
 
     //Igual que los otros comandos pero envia mas informacion de Python para cambiar los parametros.
 
@@ -179,6 +192,8 @@ public class WebSocketController : MonoBehaviour
                 string[] values = command.Split(':');
                 await socket.SendText($"{{\"command\":\"configure_restart\",\"width\":{values[1]},\"height\":{values[2]},\"num_harvesters\":{values[3]},\"num_grain_carts\":{values[4]},\"num_obstacles\":{values[5]},\"steps\":{values[6]}}}");
             }
+            else if (command.StartsWith("set_speed:"))
+                await socket.SendText("{\"command\":\"set_speed\",\"speed\":" + command.Split(':')[1] + "}");
             else
                 await socket.SendText("{\"command\":\"" + command + "\"}");
         }
@@ -205,6 +220,11 @@ public class WebSocketController : MonoBehaviour
             Debug.LogWarning($"Invalid Python JSON: {exception.Message}", this);
             return;
         }
+
+        if (message != null && message.playback_speed > 0 && !float.IsInfinity(message.playback_speed))
+            PlaybackSpeed = message.playback_speed;
+        if (message?.simulation != null && message.simulation.delta_time > 0)
+            SimulationStepDuration = message.simulation.delta_time;
 
         //Si el mensaje es de tipo estatus, actualiza el estatus.
 

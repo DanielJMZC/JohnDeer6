@@ -17,11 +17,12 @@ public class VehicleSpawner : MonoBehaviour
     [Header("Espaciado")]
     public float espacioEntreVehiculos = 4f;
     private float offsetActual = 0f;
+    public float PlaybackSpeed { get; set; } = 5f;
+    public float SimulationStepDuration { get; set; } = 0.5f;
+    public bool PlaybackPaused { get; set; }
     public bool spawnOnStart = true;
     [Tooltip("Vertical offset from the grid cell center, in Unity units.")]
     public float vehicleHeightOffset;
-    [Header("Movement smoothing")]
-    [SerializeField, Min(0.01f)] private float movementDuration = 0.1f;
 
     //Para animar el vehiculo.
     private sealed class Motion
@@ -102,6 +103,10 @@ public class VehicleSpawner : MonoBehaviour
             foreach (Camera vehicleCamera in instance.GetComponentsInChildren<Camera>(true))
                 vehicleCamera.enabled = false;
             vehicles.Add(agent.id, instance);
+            if (instance.GetComponentsInChildren<VehicleBehavior>(true).Length == 0)
+                instance.AddComponent<VehicleBehavior>();
+            foreach (var behavior in instance.GetComponentsInChildren<VehicleBehavior>(true))
+                behavior.ApplyTelemetry(agent);
             if (agent.type == "harvester") cantidadCosechadoras++;
             else cantidadTractores++;
         }
@@ -131,7 +136,10 @@ public class VehicleSpawner : MonoBehaviour
         }
         foreach (var agent in agents)
         {
-            if (agent == null || agent.position == null || !vehicles.TryGetValue(agent.id, out var instance)) continue;
+            if (agent == null || !vehicles.TryGetValue(agent.id, out var instance)) continue;
+            foreach (var behavior in instance.GetComponentsInChildren<VehicleBehavior>(true))
+                behavior.ApplyTelemetry(agent);
+            if (agent.position == null) continue;
             var cell = new Vector2Int(agent.position.x, agent.position.y);
 
             //Revisa cuantos vehiculos hay en la celula y los separa en una formacion de cuadrado. Es mas para el inciio donde hacen spawn en el mismo lugar.
@@ -177,7 +185,7 @@ public class VehicleSpawner : MonoBehaviour
                     ? Quaternion.LookRotation(direction, Vector3.up)
                     : motion.startRotation;
                 motion.elapsed = 0;
-                motion.duration = Mathf.Max(0.01f, movementDuration);
+                motion.duration = Mathf.Max(0.01f, SimulationStepDuration / Mathf.Max(0.01f, PlaybackSpeed));
             }
             //Si el movimiento anterior termino, prepara el movimiento hacia la posicion recibida.
             else if ((target - motion.target).sqrMagnitude > 0.0001f)
@@ -191,7 +199,7 @@ public class VehicleSpawner : MonoBehaviour
                     ? Quaternion.LookRotation(direction, Vector3.up)
                     : motion.startRotation;
                 motion.elapsed = 0;
-                motion.duration = Mathf.Max(0.01f, movementDuration);
+                motion.duration = Mathf.Max(0.01f, SimulationStepDuration / Mathf.Max(0.01f, PlaybackSpeed));
             }
 
             //Muestra vehiculo cuando tenga posicion valida.
@@ -249,6 +257,7 @@ public class VehicleSpawner : MonoBehaviour
     //Para cada frame, si el vehiculo tiene un movimiento pendiente, lo mueve hacia su destino.
     private void Update()
     {
+        if (PlaybackPaused) return;
         foreach (var entry in motions)
         {
             Motion motion = entry.Value;

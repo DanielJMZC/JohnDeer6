@@ -47,6 +47,16 @@ public class SimulationViewController : MonoBehaviour
             OnSimulationMessage(webSocketController.LatestMessage);
     }
 
+    private void Update() => SyncPlayback();
+
+    private void SyncPlayback()
+    {
+        if (vehicleSpawner == null || webSocketController == null) return;
+        vehicleSpawner.PlaybackSpeed = webSocketController.PlaybackSpeed;
+        vehicleSpawner.SimulationStepDuration = webSocketController.SimulationStepDuration;
+        vehicleSpawner.PlaybackPaused = !webSocketController.CanSend || webSocketController.Status == "Paused";
+    }
+
     //Se desuscribe de los eventos. 
     private void OnDisable()
     {
@@ -59,6 +69,7 @@ public class SimulationViewController : MonoBehaviour
     private void OnSimulationMessage(WebSocketController.SimulationMessage message)
     {
         if (message == null) return;
+        SyncPlayback();
         if (message.type == "simulation_init")
         {
             //Si el mensaje es el mismo, no hace nada. Ya se inicializo.

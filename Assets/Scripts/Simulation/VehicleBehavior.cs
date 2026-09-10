@@ -1,44 +1,51 @@
-using System.Collections.Generic;
 using UnityEngine;
 using UnityEngine.Splines;
 using TMPro;
 
-//ANTES SE USABA PERO YA NO.
 public class VehicleBehavior : MonoBehaviour
 {
     public GameObject m_Vehicle;
     public float progress = 0f;
     public float speed = 0.1f;
-    public int load = 0;
-    public int capacity = 8;
+    public float load;
+    public float capacity;
     public TextMeshProUGUI loadText;
-
-    
-
-
-    
-    
-    
     public SplineContainer path;
-    void Start()
+    public float LoadKg { get; private set; }
+    public float CapacityKg { get; private set; }
+    public float FuelLiters { get; private set; }
+    public float FuelCapacityLiters { get; private set; }
+    public float FuelConsumedLiters { get; private set; }
+    public string OperatingState { get; private set; }
+
+    public void ApplyTelemetry(WebSocketController.AgentData agent)
     {
-        loadText.text = "0/" + capacity.ToString();
+        load = agent.load;
+        capacity = agent.capacity;
+        LoadKg = agent.load;
+        CapacityKg = agent.capacity;
+        FuelLiters = agent.fuel;
+        FuelCapacityLiters = agent.fuel_capacity;
+        FuelConsumedLiters = agent.fuel_consumed;
+        OperatingState = agent.operating_state;
+        if (loadText != null) loadText.text = TelemetryText(agent);
     }
 
-    // Update is called once per frame
-    void Update()
+    public static string TelemetryText(WebSocketController.AgentData agent)
     {
-        
-    }
-
-    private void OnTriggerEnter(Collider other)
-    {
-        if (other.CompareTag("Corn"))
+        string state;
+        switch (agent.operating_state)
         {
-            other.gameObject.SetActive(false);
-            load++;
-            loadText.text = load.ToString() + "/" + capacity.ToString();
+            case "unloaded": state = "Descarga realizada"; break;
+            case "unloading": state = "Descargando al tractor"; break;
+            case "receiving": state = "Recibiendo grano"; break;
+            case "going_to_unload": state = "En camino a descargar"; break;
+            case "harvesting": state = "Cosechando"; break;
+            case "full": state = "Lleno"; break;
+            case "moving": state = "En movimiento"; break;
+            case "idle": state = "En espera"; break;
+            default: state = "Sin estado del backend"; break;
         }
+        return $"Carga: {agent.load:F2}/{agent.capacity:F2} kg | Combustible: {agent.fuel:F2}/{agent.fuel_capacity:F2} L | Consumido: {agent.fuel_consumed:F2} L | {state}";
     }
-
 }
